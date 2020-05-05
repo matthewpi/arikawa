@@ -92,6 +92,32 @@ func (g *Gateway) HandleOP(op *wsutil.OP) error {
 			g.SessionID = ev.SessionID
 		}
 
+		// Fix GuildID being empty on member.
+		if ev, ok := ev.(*MessageCreateEvent); ok {
+			if ev.Member != nil {
+				ev.Member.GuildID = ev.GuildID
+			}
+		}
+
+		if ev, ok := ev.(*MessageUpdateEvent); ok {
+			if ev.Member != nil {
+				ev.Member.GuildID = ev.GuildID
+			}
+		}
+
+		if ev, ok := ev.(*MessageReactionAddEvent); ok {
+			if ev.Member != nil {
+				ev.Member.GuildID = ev.GuildID
+			}
+		}
+
+		if ev, ok := ev.(*TypingStartEvent); ok {
+			if ev.Member != nil {
+				ev.Member.GuildID = ev.GuildID
+			}
+		}
+		// END Fix GuildID being empty on member.
+
 		// Throw the event into a channel, it's valid now.
 		g.Events <- ev
 		return nil

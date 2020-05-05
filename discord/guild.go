@@ -139,12 +139,17 @@ type Member struct {
 	Joined       Timestamp `json:"joined_at"`
 	BoostedSince Timestamp `json:"premium_since,omitempty"`
 
-	Deaf bool `json:"deaf"`
-	Mute bool `json:"mute"`
+	Deafened bool      `json:"deaf"`
+	Muted    bool      `json:"mute"`
+	GuildID  Snowflake `json:"guild_id"`
 }
 
 func (m Member) Mention() string {
 	return "<@!" + m.User.ID.String() + ">"
+}
+
+func (m *Member) IsSelf(user User) bool {
+	return m.User.ID.String() == user.ID.String()
 }
 
 type Ban struct {

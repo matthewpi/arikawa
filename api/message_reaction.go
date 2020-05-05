@@ -1,14 +1,16 @@
 package api
 
 import (
+	"fmt"
+
 	"github.com/diamondburned/arikawa/discord"
 	"github.com/diamondburned/arikawa/utils/httputil"
 )
 
 // React adds a reaction to the message. This requires READ_MESSAGE_HISTORY (and
 // additionally ADD_REACTIONS) to react.
-func (c *Client) React(
-	channelID, messageID discord.Snowflake, emoji EmojiAPI) error {
+func (c *Client) React(channelID, messageID discord.Snowflake, emoji EmojiAPI) error {
+	fmt.Println("reacting to message..")
 
 	var msgURL = EndpointChannels + channelID.String() +
 		"/messages/" + messageID.String() +

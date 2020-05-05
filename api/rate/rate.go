@@ -2,6 +2,7 @@ package rate
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -164,6 +165,11 @@ func (l *Limiter) Release(path string, headers http.Header) error {
 		reset      = headers.Get("X-RateLimit-Reset")
 		retryAfter = headers.Get("Retry-After")
 	)
+
+	fmt.Println("X-RateLimit-Global: " + global)
+	fmt.Println("X-RateLimit-Remaining: " + remaining)
+	fmt.Println("X-RateLimit-Reset: " + reset)
+	fmt.Println("Retry-After: " + retryAfter)
 
 	switch {
 	case retryAfter != "":

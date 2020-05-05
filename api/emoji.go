@@ -1,8 +1,6 @@
 package api
 
 import (
-	"errors"
-
 	"github.com/diamondburned/arikawa/discord"
 	"github.com/diamondburned/arikawa/utils/httputil"
 )
@@ -18,25 +16,15 @@ func FormatEmojiAPI(id discord.Snowflake, name string) string {
 	return name + ":" + id.String()
 }
 
-func (c *Client) Emojis(
-	guildID discord.Snowflake) ([]discord.Emoji, error) {
-
-	var emjs []discord.Emoji
-	return emjs, c.RequestJSON(&emjs, "GET",
-		EndpointGuilds+guildID.String()+"/emojis")
+func (c *Client) Emojis(guildID discord.Snowflake) ([]discord.Emoji, error) {
+	var emojis []discord.Emoji
+	return emojis, c.RequestJSON(&emojis, "GET", EndpointGuilds+guildID.String()+"/emojis")
 }
 
-func (c *Client) Emoji(
-	guildID, emojiID discord.Snowflake) (*discord.Emoji, error) {
-
-	var emj *discord.Emoji
-	return emj, c.RequestJSON(&emj, "GET",
-		EndpointGuilds+guildID.String()+"/emojis/"+emojiID.String())
+func (c *Client) Emoji(guildID, emojiID discord.Snowflake) (*discord.Emoji, error) {
+	var emoji *discord.Emoji
+	return emoji, c.RequestJSON(&emoji, "GET", EndpointGuilds+guildID.String()+"/emojis/"+emojiID.String())
 }
-
-var (
-	ErrEmojiTooLarge = errors.New("Emoji is larger than 256k")
-)
 
 // CreateEmoji creates a new emoji in the guild. This endpoint requires
 // MANAGE_EMOJIS. ContentType must be "image/jpeg", "image/png", or

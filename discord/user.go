@@ -1,6 +1,9 @@
 package discord
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 // DefaultAvatarURL is the link to the default green avatar on Discord. It's
 // returned from AvatarURL() if the user doesn't have an avatar.
@@ -28,11 +31,19 @@ type User struct {
 	Nitro       UserNitro `json:"premium_type,omitempty"`
 }
 
+func (u *User) Tag() string {
+	return u.Username + "#" + u.Discriminator
+}
+
 func (u User) Mention() string {
 	return "<@" + u.ID.String() + ">"
 }
 
-func (u User) AvatarURL() string {
+func (u *User) String() string {
+	return u.Tag() + " (" + u.ID.String() + ")"
+}
+
+func (u User) AvatarURL(size int) string {
 	if u.Avatar == "" {
 		return DefaultAvatarURL
 	}
@@ -41,10 +52,16 @@ func (u User) AvatarURL() string {
 	base += "/avatars/" + u.ID.String() + "/" + u.Avatar
 
 	if strings.HasPrefix(u.Avatar, "a_") {
-		return base + ".gif"
+		base += ".gif"
 	} else {
-		return base + ".png"
+		base += ".png"
 	}
+
+	if size > 0 {
+		base += "?size=" + strconv.Itoa(size)
+	}
+
+	return base
 }
 
 type UserFlags uint32

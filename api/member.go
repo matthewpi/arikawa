@@ -5,21 +5,26 @@ import (
 	"github.com/diamondburned/arikawa/utils/httputil"
 )
 
-func (c *Client) Member(
-	guildID, userID discord.Snowflake) (*discord.Member, error) {
-
+func (c *Client) Member(guildID, userID discord.Snowflake) (*discord.Member, error) {
 	var m *discord.Member
-	return m, c.RequestJSON(&m, "GET",
-		EndpointGuilds+guildID.String()+"/members/"+userID.String())
+	err := c.RequestJSON(&m, "GET", EndpointGuilds+guildID.String()+"/members/"+userID.String())
+	if err != nil {
+		return nil, err
+	}
+
+	// Set the guild id on the member, because Discord doesn't.
+	if m != nil {
+		m.GuildID = guildID
+	}
+
+	return m, nil
 }
 
 // Members returns members until it reaches max. This function automatically
 // paginates, meaning the normal 1000 limit is handled internally. Max can be 0,
 // in which the function will try and fetch everything.
-func (c *Client) Members(
-	guildID discord.Snowflake, max uint) ([]discord.Member, error) {
-
-	var mems []discord.Member
+func (c *Client) Members(guildID discord.Snowflake, max uint) ([]discord.Member, error) {
+	var members []discord.Member
 	var after discord.Snowflake = 0
 
 	const hardLimit int = 1000
@@ -34,26 +39,24 @@ func (c *Client) Members(
 
 		m, err := c.MembersAfter(guildID, after, fetch)
 		if err != nil {
-			return mems, err
+			return members, err
 		}
-		mems = append(mems, m...)
+		members = append(members, m...)
 
 		// There aren't any to fetch, even if this is less than max.
-		if len(mems) < hardLimit {
+		if len(members) < hardLimit {
 			break
 		}
 
-		after = mems[hardLimit-1].User.ID
+		after = members[hardLimit-1].User.ID
 	}
 
-	return mems, nil
+	return members, nil
 }
 
 // MembersAfter returns a list of all guild members, from 1-1000 for limits. The
 // default limit is 1 and the maximum limit is 1000.
-func (c *Client) MembersAfter(
-	guildID, after discord.Snowflake, limit uint) ([]discord.Member, error) {
-
+func (c *Client) MembersAfter(guildID, after discord.Snowflake, limit uint) ([]discord.Member, error) {
 	if limit == 0 {
 		limit = 1
 	}
@@ -92,8 +95,7 @@ type AnyMemberData struct {
 }
 
 // AddMember requires access(Token).
-func (c *Client) AddMember(
-	guildID, userID discord.Snowflake, token string,
+func (c *Client) AddMember(guildID, userID discord.Snowflake, token string,
 	data AnyMemberData) (*discord.Member, error) {
 
 	// VoiceChannel doesn't belong here
@@ -115,9 +117,7 @@ func (c *Client) AddMember(
 	)
 }
 
-func (c *Client) ModifyMember(
-	guildID, userID discord.Snowflake, data AnyMemberData) error {
-
+func (c *Client) ModifyMember(guildID, userID discord.Snowflake, data AnyMemberData) error {
 	return c.FastRequest(
 		"PATCH",
 		EndpointGuilds+guildID.String()+"/members/"+userID.String(),
@@ -127,9 +127,7 @@ func (c *Client) ModifyMember(
 
 // PruneCount returns the number of members that would be removed in a prune
 // operation. Requires KICK_MEMBERS. Days must be 1 or more, default 7.
-func (c *Client) PruneCount(
-	guildID discord.Snowflake, days uint) (uint, error) {
-
+func (c *Client) PruneCount(guildID discord.Snowflake, days uint) (uint, error) {
 	if days == 0 {
 		days = 7
 	}
@@ -153,9 +151,7 @@ func (c *Client) PruneCount(
 
 // Prune returns the number of members that is removed. Requires KICK_MEMBERS.
 // Days must be 1 or more, default 7.
-func (c *Client) Prune(
-	guildID discord.Snowflake, days uint) (uint, error) {
-
+func (c *Client) Prune(guildID discord.Snowflake, days uint) (uint, error) {
 	if days == 0 {
 		days = 7
 	}
@@ -181,29 +177,24 @@ func (c *Client) Prune(
 
 // Kick requires KICK_MEMBERS.
 func (c *Client) Kick(guildID, userID discord.Snowflake) error {
-	return c.FastRequest("DELETE",
-		EndpointGuilds+guildID.String()+"/members/"+userID.String())
+	return c.FastRequest("DELETE", EndpointGuilds+guildID.String()+"/members/"+userID.String())
 }
 
 func (c *Client) Bans(guildID discord.Snowflake) ([]discord.Ban, error) {
 	var bans []discord.Ban
-	return bans, c.RequestJSON(&bans, "GET",
-		EndpointGuilds+guildID.String()+"/bans")
+	return bans, c.RequestJSON(&bans, "GET", EndpointGuilds+guildID.String()+"/bans")
 }
 
 func (c *Client) GetBan(
 	guildID, userID discord.Snowflake) (*discord.Ban, error) {
 
 	var ban *discord.Ban
-	return ban, c.RequestJSON(&ban, "GET",
-		EndpointGuilds+guildID.String()+"/bans/"+userID.String())
+	return ban, c.RequestJSON(&ban, "GET", EndpointGuilds+guildID.String()+"/bans/"+userID.String())
 }
 
 // Ban requires the BAN_MEMBERS permission. Days is the days back for Discord
 // to delete the user's message, maximum 7 days.
-func (c *Client) Ban(
-	guildID, userID discord.Snowflake, days uint, reason string) error {
-
+func (c *Client) Ban(guildID, userID discord.Snowflake, days uint, reason string) error {
 	if days > 7 {
 		days = 7
 	}
@@ -225,6 +216,5 @@ func (c *Client) Ban(
 
 // Unban also requires BAN_MEMBERS.
 func (c *Client) Unban(guildID, userID discord.Snowflake) error {
-	return c.FastRequest("DELETE",
-		EndpointGuilds+guildID.String()+"/bans/"+userID.String())
+	return c.FastRequest("DELETE", EndpointGuilds+guildID.String()+"/bans/"+userID.String())
 }
