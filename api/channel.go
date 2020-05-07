@@ -46,31 +46,22 @@ func (c *Client) CreateChannel(
 	)
 }
 
-func (c *Client) MoveChannel(
-	guildID, channelID discord.Snowflake, position int) error {
+type ChannelMove struct {
+	ID       discord.Snowflake `json:"id"`
+	Position int               `json:"position"`
+}
 
-	var param struct {
-		ID  discord.Snowflake `json:"id"`
-		Pos int               `json:"position"`
-	}
-
-	param.ID = channelID
-	param.Pos = position
-
+func (c *Client) MoveChannels(guildID discord.Snowflake, moves []ChannelMove) error {
 	return c.FastRequest(
 		"PATCH",
 		EndpointGuilds+guildID.String()+"/channels",
-		httputil.WithJSONBody(c, param),
+		httputil.WithJSONBody(c, moves),
 	)
 }
 
-func (c *Client) Channel(
-	channelID discord.Snowflake) (*discord.Channel, error) {
-
+func (c *Client) Channel(channelID discord.Snowflake) (*discord.Channel, error) {
 	var channel *discord.Channel
-
-	return channel,
-		c.RequestJSON(&channel, "GET", EndpointChannels+channelID.String())
+	return channel, c.RequestJSON(&channel, "GET", EndpointChannels+channelID.String())
 }
 
 type ModifyChannelData struct {

@@ -91,7 +91,7 @@ type AnyMemberData struct {
 	Roles []discord.Snowflake `json:"roles,omitempty"`
 
 	// Only for ModifyMember, requires MOVE_MEMBER
-	VoiceChannel discord.Snowflake `json:"channel_id,omitempty"`
+	VoiceChannel *discord.Snowflake `json:"channel_id,omitempty"`
 }
 
 // AddMember requires access(Token).
@@ -99,7 +99,7 @@ func (c *Client) AddMember(guildID, userID discord.Snowflake, token string,
 	data AnyMemberData) (*discord.Member, error) {
 
 	// VoiceChannel doesn't belong here
-	data.VoiceChannel = 0
+	data.VoiceChannel = new(discord.Snowflake)
 
 	var param struct {
 		Token string `json:"access_token"`
