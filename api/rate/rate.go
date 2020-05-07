@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/diamondburned/arikawa/utils/moreatomic"
 	"github.com/pkg/errors"
-	"github.com/sasha-s/go-csync"
 )
 
 // ExtraDelay because Discord is trash. I've seen this in both litcord and
@@ -38,7 +38,7 @@ type CustomRateLimit struct {
 }
 
 type bucket struct {
-	lock   csync.Mutex
+	lock   moreatomic.CtxMutex
 	custom *CustomRateLimit
 
 	remaining uint64
@@ -46,6 +46,13 @@ type bucket struct {
 
 	reset     time.Time
 	lastReset time.Time // only for custom
+}
+
+func newBucket() *bucket {
+	return &bucket{
+		lock:      *moreatomic.NewCtxMutex(),
+		remaining: 1,
+	}
 }
 
 func NewLimiter(prefix string) *Limiter {
@@ -66,9 +73,7 @@ func (l *Limiter) getBucket(path string, store bool) *bucket {
 	}
 
 	if !ok {
-		bc := &bucket{
-			remaining: 1,
-		}
+		bc := newBucket()
 
 		for _, limit := range l.CustomLimits {
 			if strings.Contains(path, limit.Contains) {
@@ -87,8 +92,7 @@ func (l *Limiter) getBucket(path string, store bool) *bucket {
 func (l *Limiter) Acquire(ctx context.Context, path string) error {
 	b := l.getBucket(path, true)
 
-	// Acquire lock with a timeout
-	if err := b.lock.CLock(ctx); err != nil {
+	if err := b.lock.Lock(ctx); err != nil {
 		return err
 	}
 
@@ -132,11 +136,7 @@ func (l *Limiter) Release(path string, headers http.Header) error {
 		return nil
 	}
 
-	defer func() {
-		// Try and lock the bucket, to prevent unlocking an unlocked lock:
-		b.lock.TryLock()
-		b.lock.Unlock()
-	}()
+	defer b.lock.Unlock()
 
 	// Check custom limiter
 	if b.custom != nil {

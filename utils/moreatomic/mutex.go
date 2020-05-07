@@ -1,33 +1,52 @@
 package moreatomic
 
-import "github.com/sasha-s/go-deadlock"
+import (
+	"context"
+)
 
-type BusyMutex struct {
-	busy Bool
-	mut  deadlock.Mutex
+type CtxMutex struct {
+	mut chan struct{}
 }
 
-func (m *BusyMutex) TryLock() bool {
-	if m.busy.Get() {
-		return false
+func NewCtxMutex() *CtxMutex {
+	return &CtxMutex{
+		mut: make(chan struct{}, 1),
 	}
-
-	m.mut.Lock()
-	m.busy.Set(true)
-
-	return true
 }
 
-func (m *BusyMutex) IsBusy() bool {
-	return m.busy.Get()
+// func (m *CtxMutex) TryLock() bool {
+// 	select {
+// 	case m.mut <- struct{}{}:
+// 		return true
+// 	default:
+// 		return false
+// 	}
+// }
+
+// func (m *CtxMutex) IsBusy() bool {
+// 	select {
+// 	case m.mut <- struct{}{}:
+// 		<-m.mut
+// 		return false
+// 	default:
+// 		return true
+// 	}
+// }
+
+func (m *CtxMutex) Lock(ctx context.Context) error {
+	select {
+	case m.mut <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
-func (m *BusyMutex) Lock() {
-	m.mut.Lock()
-	m.busy.Set(true)
-}
-
-func (m *BusyMutex) Unlock() {
-	m.busy.Set(false)
-	m.mut.Unlock()
+func (m *CtxMutex) Unlock() {
+	select {
+	case <-m.mut:
+		// return
+	default:
+		panic("Unlock of already unlocked mutex.")
+	}
 }
