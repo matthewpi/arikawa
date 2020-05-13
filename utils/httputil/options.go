@@ -3,6 +3,7 @@ package httputil
 import (
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/diamondburned/arikawa/utils/httputil/httpdriver"
 	"github.com/diamondburned/arikawa/utils/json"
@@ -50,9 +51,16 @@ func WithContentType(ctype string) RequestOption {
 
 func WithSchema(schema SchemaEncoder, v interface{}) RequestOption {
 	return func(r httpdriver.Request) error {
-		params, err := schema.Encode(v)
-		if err != nil {
-			return err
+		var params url.Values
+
+		if p, ok := v.(url.Values); ok {
+			params = p
+		} else {
+			p, err := schema.Encode(v)
+			if err != nil {
+				return err
+			}
+			params = p
 		}
 
 		r.AddQuery(params)

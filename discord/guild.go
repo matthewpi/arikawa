@@ -49,6 +49,10 @@ type Guild struct {
 
 	// Defaults to en-US, only set if guild has DISCOVERABLE
 	PreferredLocale string `json:"preferred_locale"`
+
+	// Only presented if WithCounts is true.
+	ApproximateMembers   uint64 `json:"approximate_member_count,omitempty"`
+	ApproximatePresences uint64 `json:"approximate_presence_count,omitempty"`
 }
 
 // IconURL returns the URL to the guild icon. An empty string is removed if
@@ -168,8 +172,8 @@ type Integration struct {
 	// used for subscribers
 	RoleID Snowflake `json:"role_id"`
 
-	ExpireBehavior    int `json:"expire_behavior"`
-	ExpireGracePeriod int `json:"expire_grace_period"`
+	ExpireBehavior    ExpireBehavior `json:"expire_behavior"`
+	ExpireGracePeriod int            `json:"expire_grace_period"`
 
 	User    User `json:"user"`
 	Account struct {
