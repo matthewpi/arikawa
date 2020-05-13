@@ -343,13 +343,12 @@ func (s *State) Guilds() ([]discord.Guild, error) {
 	return c, nil
 }
 
-////
+//
 
-func (s *State) Member(
-	guildID, userID discord.Snowflake) (*discord.Member, error) {
-
+func (s *State) Member(guildID, userID discord.Snowflake) (*discord.Member, error) {
 	m, err := s.Store.Member(guildID, userID)
 	if err == nil {
+		m.GuildID = guildID
 		return m, nil
 	}
 
@@ -358,6 +357,7 @@ func (s *State) Member(
 		return nil, err
 	}
 
+	m.GuildID = guildID
 	return m, s.Store.MemberSet(guildID, m)
 }
 
@@ -384,7 +384,7 @@ func (s *State) Members(guildID discord.Snowflake) ([]discord.Member, error) {
 	})
 }
 
-////
+//
 
 func (s *State) Message(
 	channelID, messageID discord.Snowflake) (*discord.Message, error) {

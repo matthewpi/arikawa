@@ -3,6 +3,7 @@ package api
 import (
 	"github.com/diamondburned/arikawa/discord"
 	"github.com/diamondburned/arikawa/utils/httputil"
+	"github.com/diamondburned/arikawa/utils/json"
 )
 
 func (c *Client) Member(guildID, userID discord.Snowflake) (*discord.Member, error) {
@@ -84,22 +85,22 @@ func (c *Client) MembersAfter(guildID, after discord.Snowflake, limit uint) ([]d
 
 // AnyMemberData, all fields are optional.
 type AnyMemberData struct {
-	Nick string `json:"nick,omitempty"`
-	Mute bool   `json:"mute,omitempty"`
-	Deaf bool   `json:"deaf,omitempty"`
+	Nick json.OptionString `json:"nick,omitempty"`
+	Mute json.OptionBool   `json:"mute,omitempty"`
+	Deaf json.OptionBool   `json:"deaf,omitempty"`
 
-	Roles []discord.Snowflake `json:"roles,omitempty"`
+	Roles *[]discord.Snowflake `json:"roles,omitempty"`
 
 	// Only for ModifyMember, requires MOVE_MEMBER
-	VoiceChannel *discord.Snowflake `json:"channel_id,omitempty"`
+	VoiceChannel discord.Snowflake `json:"channel_id,omitempty"`
 }
 
 // AddMember requires access(Token).
 func (c *Client) AddMember(guildID, userID discord.Snowflake, token string,
 	data AnyMemberData) (*discord.Member, error) {
 
-	// VoiceChannel doesn't belong here
-	data.VoiceChannel = new(discord.Snowflake)
+	// VoiceChannel doesn't belong here.
+	data.VoiceChannel = discord.NullSnowflake
 
 	var param struct {
 		Token string `json:"access_token"`
@@ -110,10 +111,11 @@ func (c *Client) AddMember(guildID, userID discord.Snowflake, token string,
 	param.AnyMemberData = data
 
 	var mem *discord.Member
+
 	return mem, c.RequestJSON(
 		&mem, "PUT",
 		EndpointGuilds+guildID.String()+"/members/"+userID.String(),
-		httputil.WithJSONBody(c, param),
+		httputil.WithJSONBody(param),
 	)
 }
 
@@ -121,7 +123,7 @@ func (c *Client) ModifyMember(guildID, userID discord.Snowflake, data AnyMemberD
 	return c.FastRequest(
 		"PATCH",
 		EndpointGuilds+guildID.String()+"/members/"+userID.String(),
-		httputil.WithJSONBody(c, data),
+		httputil.WithJSONBody(data),
 	)
 }
 
@@ -185,9 +187,7 @@ func (c *Client) Bans(guildID discord.Snowflake) ([]discord.Ban, error) {
 	return bans, c.RequestJSON(&bans, "GET", EndpointGuilds+guildID.String()+"/bans")
 }
 
-func (c *Client) GetBan(
-	guildID, userID discord.Snowflake) (*discord.Ban, error) {
-
+func (c *Client) GetBan(guildID, userID discord.Snowflake) (*discord.Ban, error) {
 	var ban *discord.Ban
 	return ban, c.RequestJSON(&ban, "GET", EndpointGuilds+guildID.String()+"/bans/"+userID.String())
 }
@@ -214,7 +214,7 @@ func (c *Client) Ban(guildID, userID discord.Snowflake, days uint, reason string
 	)
 }
 
-// Unban also requires BAN_MEMBERS.
+// Unban requires BAN_MEMBERS.
 func (c *Client) Unban(guildID, userID discord.Snowflake) error {
 	return c.FastRequest("DELETE", EndpointGuilds+guildID.String()+"/bans/"+userID.String())
 }

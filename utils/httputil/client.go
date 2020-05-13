@@ -8,10 +8,14 @@ import (
 	"io"
 	"mime/multipart"
 
+	"github.com/pkg/errors"
+
 	"github.com/diamondburned/arikawa/utils/httputil/httpdriver"
 	"github.com/diamondburned/arikawa/utils/json"
-	"github.com/pkg/errors"
 )
+
+// StatusTooManyRequests is the HTTP status code discord sends on rate-limiting.
+const StatusTooManyRequests = 429
 
 // Retries is the default attempts to retry if the API returns an error before
 // giving up. If the value is smaller than 1, then requests will retry forever.
@@ -19,7 +23,6 @@ var Retries uint = 5
 
 type Client struct {
 	httpdriver.Client
-	json.Driver
 	SchemaEncoder
 
 	// OnRequest, if not nil, will be copied and prefixed on each Request.
@@ -38,7 +41,6 @@ type Client struct {
 func NewClient() *Client {
 	return &Client{
 		Client:        httpdriver.NewClient(),
-		Driver:        json.Default,
 		SchemaEncoder: &DefaultSchema{},
 		Retries:       Retries,
 		context:       context.Background(),
@@ -143,7 +145,7 @@ func (c *Client) RequestJSON(to interface{}, method, url string, opts ...Request
 		return nil
 	}
 
-	if err := c.DecodeStream(body, to); err != nil {
+	if err := json.DecodeStream(body, to); err != nil {
 		return JSONError{err}
 	}
 
@@ -179,7 +181,7 @@ func (c *Client) Request(method, url string, opts ...RequestOption) (httpdriver.
 			continue
 		}
 
-		if status = r.GetStatus(); status < 200 || status > 299 {
+		if status = r.GetStatus(); status == StatusTooManyRequests || status >= 500 {
 			continue
 		}
 
@@ -207,7 +209,7 @@ func (c *Client) Request(method, url string, opts ...RequestOption) (httpdriver.
 		}
 
 		// Optionally unmarshal the error.
-		c.Unmarshal(httpErr.Body, &httpErr)
+		json.Unmarshal(httpErr.Body, &httpErr)
 
 		return nil, httpErr
 	}

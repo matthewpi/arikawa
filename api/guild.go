@@ -5,6 +5,7 @@ import (
 
 	"github.com/diamondburned/arikawa/discord" // for clarity
 	"github.com/diamondburned/arikawa/utils/httputil"
+	"github.com/diamondburned/arikawa/utils/json"
 )
 
 var EndpointGuilds = Endpoint + "guilds/"
@@ -31,12 +32,12 @@ type CreateGuildData struct {
 
 func (c *Client) CreateGuild(data CreateGuildData) (*discord.Guild, error) {
 	var g *discord.Guild
-	return g, c.RequestJSON(&g, "POST", Endpoint+"guilds", httputil.WithJSONBody(c, data))
+	return g, c.RequestJSON(&g, "POST", Endpoint+"guilds", httputil.WithJSONBody(data))
 }
 
-func (c *Client) Guild(guildID discord.Snowflake) (*discord.Guild, error) {
+func (c *Client) Guild(id discord.Snowflake) (*discord.Guild, error) {
 	var g *discord.Guild
-	return g, c.RequestJSON(&g, "GET", EndpointGuilds+guildID.String())
+	return g, c.RequestJSON(&g, "GET", EndpointGuilds+id.String())
 }
 
 // Guilds returns all guilds, automatically paginating. Be careful, as this
@@ -112,45 +113,47 @@ func (c *Client) GuildsRange(before, after discord.Snowflake, limit uint) ([]dis
 	)
 }
 
-func (c *Client) LeaveGuild(guildID discord.Snowflake) error {
-	return c.FastRequest("DELETE", EndpointMe+"/guilds/"+guildID.String())
+func (c *Client) LeaveGuild(id discord.Snowflake) error {
+	return c.FastRequest("DELETE", EndpointMe+"/guilds/"+id.String())
 }
 
 // https://discordapp.com/developers/docs/resources/guild#modify-guild-json-params
 type ModifyGuildData struct {
-	Name   string `json:"name,omitempty"`
-	Region string `json:"region,omitempty"`
-	Icon   Image  `json:"image,omitempty"`
+	Name   string            `json:"name,omitempty"`
+	Region json.OptionString `json:"region,omitempty"`
 
 	// package d is just package discord
 	Verification   *discord.Verification   `json:"verification_level,omitempty"`
 	Notification   *discord.Notification   `json:"default_message_notifications,omitempty"`
 	ExplicitFilter *discord.ExplicitFilter `json:"explicit_content_filter,omitempty"`
 
-	AFKChannelID *discord.Snowflake `json:"afk_channel_id,string,omitempty"`
-	AFKTimeout   *discord.Seconds   `json:"afk_timeout,omitempty"`
+	AFKChannelID discord.Snowflake `json:"afk_channel_id,string,omitempty"`
+	AFKTimeout   discord.Seconds   `json:"afk_timeout,omitempty"`
 
-	OwnerID discord.Snowflake `json:"owner_id,string,omitempty"`
+	OwnerID discord.Snowflake `json:"owner_id,omitempty"`
 
-	Splash Image `json:"splash,omitempty"`
-	Banner Image `json:"banner,omitempty"`
+	Icon   *Image `json:"icon,omitempty"`
+	Splash *Image `json:"splash,omitempty"`
+	Banner *Image `json:"banner,omitempty"`
 
-	SystemChannelID discord.Snowflake `json:"system_channel_id,string,omitempty"`
+	SystemChannelID        discord.Snowflake `json:"system_channel_id,omitempty"`
+	RulesChannelID         discord.Snowflake `json:"rules_channel_id,omitempty"`
+	PublicUpdatesChannelID discord.Snowflake `json:"public_updates_channel_id,omitempty"`
+
+	PreferredLocale json.OptionString `json:"preferred_locale,omitempty"`
 }
 
-func (c *Client) ModifyGuild(
-	guildID discord.Snowflake, data ModifyGuildData) (*discord.Guild, error) {
-
+func (c *Client) ModifyGuild(id discord.Snowflake, data ModifyGuildData) (*discord.Guild, error) {
 	var g *discord.Guild
 	return g, c.RequestJSON(
 		&g, "PATCH",
-		EndpointGuilds+guildID.String(),
-		httputil.WithJSONBody(c, data),
+		EndpointGuilds+id.String(),
+		httputil.WithJSONBody(data),
 	)
 }
 
-func (c *Client) DeleteGuild(guildID discord.Snowflake) error {
-	return c.FastRequest("DELETE", EndpointGuilds+guildID.String())
+func (c *Client) DeleteGuild(id discord.Snowflake) error {
+	return c.FastRequest("DELETE", EndpointGuilds+id.String())
 }
 
 // GuildVoiceRegions is the same as /voice, but returns VIP ones as well if
@@ -158,6 +161,38 @@ func (c *Client) DeleteGuild(guildID discord.Snowflake) error {
 func (c *Client) VoiceRegionsGuild(guildID discord.Snowflake) ([]discord.VoiceRegion, error) {
 	var vrs []discord.VoiceRegion
 	return vrs, c.RequestJSON(&vrs, "GET", EndpointGuilds+guildID.String()+"/regions")
+}
+
+// AuditLogData contains query parameters used for AuditLog. All fields are
+// optional.
+type AuditLogData struct {
+	// Filter the log for actions made by a user
+	UserID discord.Snowflake `schema:"user_id,omitempty"`
+	// The type of audit log event
+	ActionType discord.AuditLogEvent `schema:"action_type,omitempty"`
+	// Filter the log before a certain entry ID
+	Before discord.Snowflake `schema:"before,omitempty"`
+	// How many entries are returned (default 50, minimum 1, maximum 100)
+	Limit uint `schema:"limit"`
+}
+
+// AuditLog returns an audit log object for the guild. Requires the
+// VIEW_AUDIT_LOG permission.
+func (c *Client) AuditLog(guildID discord.Snowflake, data AuditLogData) (*discord.AuditLog, error) {
+	switch {
+	case data.Limit == 0:
+		data.Limit = 50
+	case data.Limit > 100:
+		data.Limit = 100
+	}
+
+	var audit *discord.AuditLog
+
+	return audit, c.RequestJSON(
+		&audit, "GET",
+		EndpointGuilds+guildID.String()+"/audit-logs",
+		httputil.WithSchema(c, data),
+	)
 }
 
 // Integrations requires MANAGE_GUILD.
@@ -179,7 +214,7 @@ func (c *Client) AttachIntegration(
 	return c.FastRequest(
 		"POST",
 		EndpointGuilds+guildID.String()+"/integrations",
-		httputil.WithJSONBody(c, param),
+		httputil.WithJSONBody(param),
 	)
 }
 

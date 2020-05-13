@@ -42,10 +42,11 @@ func (c *Client) CreateChannel(
 	return ch, c.RequestJSON(
 		&ch, "POST",
 		EndpointGuilds+guildID.String()+"/channels",
-		httputil.WithJSONBody(c, data),
+		httputil.WithJSONBody(data),
 	)
 }
 
+// https://discord.com/developers/docs/resources/guild#modify-guild-channel-positions-json-params
 type ChannelMove struct {
 	ID       discord.Snowflake `json:"id"`
 	Position int               `json:"position"`
@@ -55,7 +56,7 @@ func (c *Client) MoveChannels(guildID discord.Snowflake, moves []ChannelMove) er
 	return c.FastRequest(
 		"PATCH",
 		EndpointGuilds+guildID.String()+"/channels",
-		httputil.WithJSONBody(c, moves),
+		httputil.WithJSONBody(moves),
 	)
 }
 
@@ -91,7 +92,7 @@ func (c *Client) ModifyChannel(channelID discord.Snowflake, data ModifyChannelDa
 	return c.FastRequest(
 		"PATCH",
 		EndpointChannels+channelID.String(),
-		httputil.WithJSONBody(c, data),
+		httputil.WithJSONBody(data),
 	)
 }
 
@@ -102,45 +103,36 @@ func (c *Client) DeleteChannel(channelID discord.Snowflake) error {
 func (c *Client) EditChannelPermission(
 	channelID discord.Snowflake, overwrite discord.Overwrite) error {
 
-	url := EndpointChannels + channelID.String() + "/permissions/" +
-		overwrite.ID.String()
+	url := EndpointChannels + channelID.String() + "/permissions/" + overwrite.ID.String()
 	overwrite.ID = 0
 
-	return c.FastRequest("PUT", url, httputil.WithJSONBody(c, overwrite))
+	return c.FastRequest("PUT", url, httputil.WithJSONBody(overwrite))
 }
 
-func (c *Client) DeleteChannelPermission(
-	channelID, overwriteID discord.Snowflake) error {
-
-	return c.FastRequest("DELETE", EndpointChannels+channelID.String()+
-		"/permissions/"+overwriteID.String())
+func (c *Client) DeleteChannelPermission(channelID, overwriteID discord.Snowflake) error {
+	return c.FastRequest("DELETE",
+		EndpointChannels+channelID.String()+"/permissions/"+overwriteID.String())
 }
 
 // Typing posts a typing indicator to the channel. Undocumented, but the client
 // usually clears the typing indicator after 8-10 seconds (or after a message).
 func (c *Client) Typing(channelID discord.Snowflake) error {
-	return c.FastRequest("POST",
-		EndpointChannels+channelID.String()+"/typing")
+	return c.FastRequest("POST", EndpointChannels+channelID.String()+"/typing")
 }
 
-func (c *Client) PinnedMessages(
-	channelID discord.Snowflake) ([]discord.Message, error) {
-
+func (c *Client) PinnedMessages(channelID discord.Snowflake) ([]discord.Message, error) {
 	var pinned []discord.Message
-	return pinned, c.RequestJSON(&pinned, "GET",
-		EndpointChannels+channelID.String()+"/pins")
+	return pinned, c.RequestJSON(&pinned, "GET", EndpointChannels+channelID.String()+"/pins")
 }
 
 // PinMessage pins a message, which requires MANAGE_MESSAGES/
 func (c *Client) PinMessage(channelID, messageID discord.Snowflake) error {
-	return c.FastRequest("PUT",
-		EndpointChannels+channelID.String()+"/pins/"+messageID.String())
+	return c.FastRequest("PUT", EndpointChannels+channelID.String()+"/pins/"+messageID.String())
 }
 
 // UnpinMessage also requires MANAGE_MESSAGES.
 func (c *Client) UnpinMessage(channelID, messageID discord.Snowflake) error {
-	return c.FastRequest("DELETE",
-		EndpointChannels+channelID.String()+"/pins/"+messageID.String())
+	return c.FastRequest("DELETE", EndpointChannels+channelID.String()+"/pins/"+messageID.String())
 }
 
 // AddRecipient adds a user to a group direct message. As accessToken is needed,
@@ -160,7 +152,7 @@ func (c *Client) AddRecipient(
 	return c.FastRequest(
 		"PUT",
 		EndpointChannels+channelID.String()+"/recipients/"+userID.String(),
-		httputil.WithJSONBody(c, params),
+		httputil.WithJSONBody(params),
 	)
 }
 
@@ -170,18 +162,19 @@ func (c *Client) RemoveRecipient(channelID, userID discord.Snowflake) error {
 		EndpointChannels+channelID.String()+"/recipients/"+userID.String())
 }
 
-// ACk is the read state of a channel. This is undocumented.
+// Ack is the read state of a channel. This is undocumented.
 type Ack struct {
 	Token string `json:"token"`
 }
 
 // Ack marks the read state of a channel. This is undocumented. The method will
-// write to the ack variable passed in.
+// write to the ack variable passed in. If this method is called asynchronously,
+// then ack should be mutex guarded.
 func (c *Client) Ack(channelID, messageID discord.Snowflake, ack *Ack) error {
 	return c.RequestJSON(
 		ack, "POST",
 		EndpointChannels+channelID.String()+
 			"/messages/"+messageID.String()+"/ack",
-		httputil.WithJSONBody(c, ack),
+		httputil.WithJSONBody(ack),
 	)
 }
