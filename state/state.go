@@ -121,34 +121,49 @@ func (s *State) MemberDisplayName(guildID, userID discord.Snowflake) (string, er
 	return member.Nick, nil
 }
 
-func (s *State) AuthorColor(message *gateway.MessageCreateEvent) discord.Color {
-	if !message.GuildID.Valid() {
-		return discord.DefaultMemberColor
+func (s *State) AuthorColor(message *gateway.MessageCreateEvent) (discord.Color, error) {
+	if !message.GuildID.Valid() { // this is a dm
+		return discord.DefaultMemberColor, nil
 	}
 
 	if message.Member != nil {
 		guild, err := s.Guild(message.GuildID)
 		if err != nil {
-			return discord.DefaultMemberColor
+			return 0, err
 		}
-		return discord.MemberColor(*guild, *message.Member)
+		return discord.MemberColor(*guild, *message.Member), nil
 	}
 
 	return s.MemberColor(message.GuildID, message.Author.ID)
 }
 
-func (s *State) MemberColor(guildID, userID discord.Snowflake) discord.Color {
-	member, err := s.Member(guildID, userID)
-	if err != nil {
-		return discord.DefaultMemberColor
+func (s *State) MemberColor(guildID, userID discord.Snowflake) (discord.Color, error) {
+	var wg sync.WaitGroup
+
+	g, gerr := s.Store.Guild(guildID)
+	if gerr != nil {
+		wg.Add(1)
+		go func() {
+			g, gerr = s.Session.Guild(guildID)
+			wg.Done()
+		}()
 	}
 
-	guild, err := s.Guild(guildID)
-	if err != nil {
-		return discord.DefaultMemberColor
+	m, merr := s.Store.Member(guildID, userID)
+	if merr != nil {
+		m, merr = s.Member(guildID, userID)
+		if merr != nil {
+			return 0, errors.Wrap(merr, "failed to get member")
+		}
 	}
 
-	return discord.MemberColor(*guild, *member)
+	wg.Wait()
+
+	if gerr != nil {
+		return 0, errors.Wrap(merr, "failed to get guild")
+	}
+
+	return discord.MemberColor(*g, *m), nil
 }
 
 ////
@@ -156,17 +171,32 @@ func (s *State) MemberColor(guildID, userID discord.Snowflake) discord.Color {
 func (s *State) Permissions(channelID, userID discord.Snowflake) (discord.Permissions, error) {
 	ch, err := s.Channel(channelID)
 	if err != nil {
-		return 0, errors.Wrap(err, "Failed to get channel")
+		return 0, errors.Wrap(err, "failed to get channel")
 	}
 
-	g, err := s.Guild(ch.GuildID)
-	if err != nil {
-		return 0, errors.Wrap(err, "Failed to get guild")
+	var wg sync.WaitGroup
+
+	g, gerr := s.Store.Guild(ch.GuildID)
+	if gerr != nil {
+		wg.Add(1)
+		go func() {
+			g, gerr = s.Session.Guild(ch.GuildID)
+			wg.Done()
+		}()
 	}
 
-	m, err := s.Member(ch.GuildID, userID)
-	if err != nil {
-		return 0, errors.Wrap(err, "Failed to get member")
+	m, merr := s.Store.Member(ch.GuildID, userID)
+	if merr != nil {
+		m, merr = s.Member(ch.GuildID, userID)
+		if merr != nil {
+			return 0, errors.Wrap(merr, "failed to get member")
+		}
+	}
+
+	wg.Wait()
+
+	if gerr != nil {
+		return 0, errors.Wrap(merr, "failed to get guild")
 	}
 
 	return discord.CalcOverwrites(*g, *ch, *m), nil
@@ -449,7 +479,9 @@ func (s *State) Messages(channelID discord.Snowflake) ([]discord.Message, error)
 		guildID = c.GuildID
 	}
 
-	for i := range ms {
+	// Iterate in reverse, since the store is expected to prepend the latest
+	// messages.
+	for i := len(ms) - 1; i >= 0; i-- {
 		// Set the guild ID, fine if it's 0 (it's already 0 anyway).
 		ms[i].GuildID = guildID
 
