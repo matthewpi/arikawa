@@ -22,22 +22,13 @@ type CreateWebhookData struct {
 //
 // Requires the MANAGE_WEBHOOKS permission.
 func (c *Client) CreateWebhook(
-	channelID discord.Snowflake,
-	name string, avatar discord.Hash) (*discord.Webhook, error) {
-
-	var param struct {
-		Name   string       `json:"name"`
-		Avatar discord.Hash `json:"avatar"`
-	}
-
-	param.Name = name
-	param.Avatar = avatar
+	channelID discord.Snowflake, data CreateWebhookData) (*discord.Webhook, error) {
 
 	var w *discord.Webhook
 	return w, c.RequestJSON(
 		&w, "POST",
 		EndpointChannels+channelID.String()+"/webhooks",
-		httputil.WithJSONBody(param),
+		httputil.WithJSONBody(data),
 	)
 }
 
@@ -100,7 +91,7 @@ func (c *Client) ModifyWebhook(
 // require authentication, does not accept a channel_id parameter in the body,
 // and does not return a user in the webhook object.
 func (c *Client) ModifyWebhookWithToken(
-	webhookID discord.Snowflake, data ModifyWebhookData, token string) (*discord.Webhook, error) {
+	webhookID discord.Snowflake, token string, data ModifyWebhookData) (*discord.Webhook, error) {
 
 	var w *discord.Webhook
 	return w, c.RequestJSON(

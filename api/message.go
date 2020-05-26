@@ -1,6 +1,8 @@
 package api
 
 import (
+	"github.com/pkg/errors"
+
 	"github.com/diamondburned/arikawa/discord"
 	"github.com/diamondburned/arikawa/utils/httputil"
 	"github.com/diamondburned/arikawa/utils/json/option"
@@ -63,7 +65,7 @@ func (c *Client) MessagesBefore(
 			break
 		}
 
-		before = m[0].Author.ID
+		before = m[0].ID
 	}
 
 	return msgs, nil
@@ -105,7 +107,7 @@ func (c *Client) MessagesAfter(
 			break
 		}
 
-		after = m[hardLimit-1].Author.ID
+		after = m[len(m)-1].ID
 	}
 
 	return msgs, nil
@@ -257,6 +259,18 @@ func (c *Client) EditMessage(
 // Fires a Message Update Gateway event.
 func (c *Client) EditMessageComplex(
 	channelID, messageID discord.Snowflake, data EditMessageData) (*discord.Message, error) {
+
+	if data.AllowedMentions != nil {
+		if err := data.AllowedMentions.Verify(); err != nil {
+			return nil, errors.Wrap(err, "allowedMentions error")
+		}
+	}
+
+	if data.Embed != nil {
+		if err := data.Embed.Validate(); err != nil {
+			return nil, errors.Wrap(err, "embed error")
+		}
+	}
 
 	var msg *discord.Message
 	return msg, c.RequestJSON(

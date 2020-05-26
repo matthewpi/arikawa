@@ -390,6 +390,15 @@ func (sub *Subcommand) SetPlumb(methodName string) {
 	sub.plumbed = sub.FindCommand(methodName)
 }
 
+// AddAliases add alias(es) to specific command (defined with commandName).
+func (sub *Subcommand) AddAliases(commandName string, aliases ...string) {
+	// Get command
+	command := sub.FindCommand(commandName)
+
+	// Write new listing of aliases
+	command.Aliases = append(command.Aliases, aliases...)
+}
+
 func lowerFirstLetter(name string) string {
 	return strings.ToLower(string(name[0])) + name[1:]
 }
