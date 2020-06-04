@@ -1,39 +1,52 @@
-image: golang:alpine
-
-variables:
-  GO111MODULE: "on"
-  CGO_ENABLED: "0"
-  COV: "/tmp/cov_results"
-
-before_script:
-  - apk add git
-
-stages:
-  - test
-
-build_test:
-  stage: test
-  script:
-    - go build ./...
-
-unit_test:
-  stage: test
-  script:
-    - go test -v -coverprofile $COV ./...
-    - go tool cover -func $COV
-        | grep -F 'total:'
-        | sed -E 's|total:\s+\(.*?\)\s+([0-9]+\.[0-9]+%)|TEST_COVERAGE=\1|'
-
-integration_test:
-  stage: test
-  script:
-    # Don't run if these variables aren't provided.
-    - '[ ! "$BOT_TOKEN" ] && exit'
-    # go get first, so it doesn't count towards the timeout.
-    - go get ./...
-    # Timeout test after 120 seconds (2 minutes)
-    - timeout 120 go test -tags integration -v -coverprofile $COV ./...
-    - go tool cover -func $COV
-        | grep -F 'total:'
-        | sed -E 's|total:\s+\(.*?\)\s+([0-9]+\.[0-9]+%)|TEST_COVERAGE=\1|'
-
+{
+    "image": "golang:alpine",
+    "variables": {
+        "GO111MODULE": "on",
+        "CGO_ENABLED": "0",
+        "COV": "/tmp/cov_results",
+        "dismock": "github.com/mavolin/dismock/pkg/dismock",
+        # used only in integration_test
+        "tested": "./api,./gateway,./bot,./discord"
+    },
+    "before_script": [
+        "apk add git"
+    ],
+    "stages": [
+        "build",
+        "test"
+    ],
+    "build_test": {
+        "stage": "build",
+        "script": [
+            "go build ./..."
+        ]
+    },
+    "unit_test": {
+        "stage": "test",
+        "timeout": "2m", # 2 minutes
+        # Don't run the test if we have a $BOT_TOKEN, because
+        # integration_test will run instead.
+        "except": {
+            "variables": [ "$BOT_TOKEN" ]
+        },
+        "script": [
+            "go test -v -coverprofile $COV ./...",
+            "go tool cover -func $COV"
+        ]
+    },
+    "integration_test": {
+        "stage": "test",
+        "timeout": "2m", # 2 minutes
+        # Run the test only if we have $BOT_TOKEN, else fallback to unit
+        # tests.
+        "only": {
+            "variables": [ "$BOT_TOKEN" ]
+        },
+        "script": [
+            "go get ./...",
+            # Test this package along with dismock.
+            "go test -coverpkg $tested -coverprofile $COV -tags integration -v ./... $dismock",
+            "go tool cover -func $COV"
+        ]
+    }
+}
