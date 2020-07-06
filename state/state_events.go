@@ -1,21 +1,50 @@
 package state
 
 import (
+	"github.com/pkg/errors"
+
 	"github.com/diamondburned/arikawa/discord"
 	"github.com/diamondburned/arikawa/gateway"
-	"github.com/pkg/errors"
 )
 
-func (s *State) hookSession() error {
-	s.unhooker = s.Session.AddHandler(func(iface interface{}) {
+func (s *State) hookSession() {
+	s.unhooker = s.Session.AddHandler(func(event interface{}) {
+		// Call the pre-handler before the state handler.
 		if s.PreHandler != nil {
-			s.PreHandler.Call(iface)
+			s.PreHandler.Call(event)
 		}
-		s.onEvent(iface)
-		s.Handler.Call(iface)
-	})
 
-	return nil
+		// Run the state handler.
+		s.onEvent(event)
+
+		switch event := event.(type) {
+		case *gateway.ReadyEvent:
+			s.Handler.Call(event)
+			s.handleReady(event)
+		case *gateway.GuildCreateEvent:
+			s.Handler.Call(event)
+			s.handleGuildCreate(event)
+		case *gateway.GuildDeleteEvent:
+			s.Handler.Call(event)
+			s.handleGuildDelete(event)
+
+		// https://github.com/discord/discord-api-docs/commit/01665c4
+		case *gateway.MessageCreateEvent:
+			if event.Member != nil {
+				event.Member.User = event.Author
+			}
+			s.Handler.Call(event)
+
+		case *gateway.MessageUpdateEvent:
+			if event.Member != nil {
+				event.Member.User = event.Author
+			}
+			s.Handler.Call(event)
+
+		default:
+			s.Handler.Call(event)
+		}
+	})
 }
 
 func (s *State) onEvent(iface interface{}) {
@@ -35,7 +64,7 @@ func (s *State) onEvent(iface interface{}) {
 
 		// Handle guilds
 		for i := range ev.Guilds {
-			s.batchLog(handleGuildCreate(s.Store, &ev.Guilds[i])...)
+			s.batchLog(storeGuildCreate(s.Store, &ev.Guilds[i])...)
 		}
 
 		// Handle private channels
@@ -50,16 +79,13 @@ func (s *State) onEvent(iface interface{}) {
 			s.stateErr(err, "failed to set self in state")
 		}
 
-	case *gateway.GuildCreateEvent:
-		s.batchLog(handleGuildCreate(s.Store, ev)...)
-
 	case *gateway.GuildUpdateEvent:
 		if err := s.Store.GuildSet((*discord.Guild)(ev)); err != nil {
 			s.stateErr(err, "failed to update guild in state")
 		}
 
 	case *gateway.GuildDeleteEvent:
-		if err := s.Store.GuildRemove(ev.ID); err != nil {
+		if err := s.Store.GuildRemove(ev.ID); err != nil && !ev.Unavailable {
 			s.stateErr(err, "failed to delete guild in state")
 		}
 
@@ -304,30 +330,28 @@ func findReaction(rs []discord.Reaction, emoji discord.Emoji) int {
 	return -1
 }
 
-func handleGuildCreate(store Store, guild *gateway.GuildCreateEvent) []error {
-	// If a guild is unavailable, don't populate it in the state, as the guild
-	// data is very incomplete.
+func storeGuildCreate(store Store, guild *gateway.GuildCreateEvent) []error {
 	if guild.Unavailable {
 		return nil
 	}
 
-	stack, error := newErrorStack()
+	stack, errs := newErrorStack()
 
 	if err := store.GuildSet(&guild.Guild); err != nil {
-		error(err, "failed to set guild in Ready")
+		errs(err, "failed to set guild in Ready")
 	}
 
 	// Handle guild emojis
 	if guild.Emojis != nil {
 		if err := store.EmojiSet(guild.ID, guild.Emojis); err != nil {
-			error(err, "failed to set guild emojis")
+			errs(err, "failed to set guild emojis")
 		}
 	}
 
 	// Handle guild member
 	for i := range guild.Members {
 		if err := store.MemberSet(guild.ID, &guild.Members[i]); err != nil {
-			error(err, "failed to set guild member in Ready")
+			errs(err, "failed to set guild member in Ready")
 		}
 	}
 
@@ -338,21 +362,21 @@ func handleGuildCreate(store Store, guild *gateway.GuildCreateEvent) []error {
 		ch.GuildID = guild.ID
 
 		if err := store.ChannelSet(&ch); err != nil {
-			error(err, "failed to set guild channel in Ready")
+			errs(err, "failed to set guild channel in Ready")
 		}
 	}
 
 	// Handle guild presences
 	for i := range guild.Presences {
 		if err := store.PresenceSet(guild.ID, &guild.Presences[i]); err != nil {
-			error(err, "failed to set guild presence in Ready")
+			errs(err, "failed to set guild presence in Ready")
 		}
 	}
 
 	// Handle guild voice states
 	for i := range guild.VoiceStates {
 		if err := store.VoiceStateSet(guild.ID, &guild.VoiceStates[i]); err != nil {
-			error(err, "failed to set guild voice state in Ready")
+			errs(err, "failed to set guild voice state in Ready")
 		}
 	}
 
